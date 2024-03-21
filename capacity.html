@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>User space AudioRenderCapacity</title>
+    </head>
+    <body>
+        <button id='start'>Start</button>
+        <button id='measure'>Measure</button>
+        <button id='stop'>Stop</button>
+
+<script type='text/javascript'>
+const interval_ms = 5;
+
+function checkLoad(context, prevTime, source) {
+    var now = context.currentTime;
+    //console.log(now, prevTime);
+
+    if (Math.abs(now - prevTime) < 0.001) {
+        console.log('at cap');
+        source.port.postMessage({});
+        return;
+    }
+
+    setTimeout(() => checkLoad(context, now, source), interval_ms);
+}
+
+var started = false;
+var context;
+var source;
+var interval;
+
+var startButton = document.getElementById("start")
+startButton.onclick = start;
+
+async function start() {
+    console.log('play');
+    if (started) {
+        return false;
+    }
+    started = true;
+    console.log('starting');
+    startButton.disabled = true;
+
+    context = new (window.AudioContext || window.webkitAudioContext)();
+    console.log(context.sampleRate);
+
+    await context.audioWorklet.addModule("proc.js");
+
+    source = new AudioWorkletNode(
+        context,
+        "render-capacity-processor",
+    );
+
+    source.connect(context.destination);
+    source.port.onmessage = event => {
+        console.log("load", event.data.load);
+    }
+    source.port.onmessageerror = (e) => {
+        console.log('control msg error', e)
+    }
+
+    var prevTime = -1.;
+    setTimeout(() => {
+        source.port.postMessage({});
+        checkLoad(context, prevTime, source);
+    }, 1000);
+
+    // context.renderCapacity.start();
+    // context.renderCapacity.onupdate = (e) => { console.log(e); };
+
+    var measureButton = document.getElementById("measure");
+    measureButton.addEventListener('click', () => {
+        console.log('measure');
+        source.port.postMessage({});
+        setTimeout(() => checkLoad(context, prevTime, source), interval_ms);
+    });
+
+    var stopButton = document.getElementById("stop");
+    stopButton.addEventListener('click', () => {
+        stopButton.disabled = true;
+        clearInterval(interval);
+        context.close();
+    });
+}
+</script>
+    </body>
+</html>
