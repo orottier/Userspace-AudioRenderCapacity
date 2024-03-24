@@ -3,7 +3,7 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
     constructor (options) {
         super(options);
         this._exp = 1;
-        this._pause = false;
+        this._pause = 0;
         this._sum = 0.0;
         this._initial_state = false;
         this._measure_state = false;
@@ -34,14 +34,14 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
 
     process(inputs, outputs, parameters) {
         if (this._initial_state) {
-            if (this._pause) {
-                this._pause = false;
+            if (this._pause < 4) {
+                this._pause += 1;
             } else {
                 this._exp *= 2;
                 for (var i=0; i<this._exp; i++) {
                     this._sum += Math.sin(Math.random());
                 }
-                this._pause = true;
+                this._pause = 0;
             }
         } else if (this._measure_state) {
             if (this._measure_frac < 1.) {

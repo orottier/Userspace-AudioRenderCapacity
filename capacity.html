@@ -11,17 +11,19 @@
 <script type='text/javascript'>
 const interval_ms = 5;
 
-function checkLoad(context, prevTime, source) {
+function checkLoad(context, prevTime, source, numStalls) {
     var now = context.currentTime;
     //console.log(now, prevTime);
 
-    if (Math.abs(now - prevTime) < 0.001) {
-        console.log('at cap');
-        source.port.postMessage({});
-        return;
+    if (now == prevTime) {
+        if (numStalls == 2) {
+            source.port.postMessage({});
+            return;
+        }
+        numStalls += 1;
     }
 
-    setTimeout(() => checkLoad(context, now, source), interval_ms);
+    setTimeout(() => checkLoad(context, now, source, numStalls), interval_ms);
 }
 
 var started = false;
@@ -62,7 +64,7 @@ async function start() {
     var prevTime = -1.;
     setTimeout(() => {
         source.port.postMessage({});
-        checkLoad(context, prevTime, source);
+        checkLoad(context, prevTime, source, 0);
     }, 1000);
 
     // context.renderCapacity.start();
@@ -70,9 +72,11 @@ async function start() {
 
     var measureButton = document.getElementById("measure");
     measureButton.addEventListener('click', () => {
-        console.log('measure');
-        source.port.postMessage({});
-        setTimeout(() => checkLoad(context, prevTime, source), interval_ms);
+        measureButton.disabled = true;
+        interval = setInterval(function () {
+            source.port.postMessage({});
+            setTimeout(() => checkLoad(context, prevTime, source, 0), interval_ms);
+        }, 1000);
     });
 
     var stopButton = document.getElementById("stop");
