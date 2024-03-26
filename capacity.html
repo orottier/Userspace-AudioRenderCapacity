@@ -12,6 +12,8 @@
 var started;
 
 var startButton = document.getElementById("start")
+var maxFlops = 0, realLoad = 0.;
+
 startButton.onclick = async () => {
     console.log('play');
     if (started) {
@@ -22,6 +24,8 @@ startButton.onclick = async () => {
     startButton.disabled = true;
 
     context = new (window.AudioContext || window.webkitAudioContext)();
+    context.resume();
+
     console.log(context.sampleRate);
 
     await context.audioWorklet.addModule("proc.js");
@@ -29,11 +33,25 @@ startButton.onclick = async () => {
     source = new AudioWorkletNode(
         context,
         "render-capacity-processor",
+        { "numberOfInputs": 0 }
     );
-
     source.connect(context.destination);
+
     source.port.onmessage = event => {
-        console.log("load", event.data.load);
+        console.log("msg", event.data);
+        if (event.data.max_flops) {
+            maxFlops = event.data.max_flops;
+            console.log("maxFlops", maxFlops);
+            source.port.postMessage({ state: 2 })
+        } else if (event.data.load_factor) {
+            if (!realLoad) {
+                realLoad = event.data.load_factor;
+                console.log("realLoad", realLoad);
+            } else {
+                var curLoad = Math.max(1 - event.data.load_factor / realLoad, 0) * 100;
+                console.log("curLoad", curLoad);
+            }
+        }
     }
     source.port.onmessageerror = (e) => {
         console.log('control msg error', e)
@@ -42,6 +60,8 @@ startButton.onclick = async () => {
     var measureButton = document.getElementById("measure");
     measureButton.addEventListener('click', () => {
         measureButton.disabled = true;
+        source.port.postMessage({ state: 2 })
+        setInterval(() => source.port.postMessage({ state: 2 }), 500);
     });
 
     var stopButton = document.getElementById("stop");
@@ -50,28 +70,7 @@ startButton.onclick = async () => {
         context.close();
     });
 
-    var sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
-    source.port.postMessage({ state: 1, sab });
-    var arr = new Int32Array(sab);
-
-    setTimeout(function () {
-        var start = performance.now();
-        var count = 0;
-        var countUnique = 0;
-        var prev = 0;
-        do {
-            count += 1;
-            var now = performance.now();
-            if (now != prev) {
-                countUnique += 1;
-                prev = now;
-            } else {
-                Atomics.store(arr, 0, (now - start) * 1000);
-            }
-        } while (now - start < 100);
-        console.log("loop times:", count);
-        console.log("unique:", countUnique);
-    }, 0);
+    source.port.postMessage({ state: 1 });
 };
 </script>
     </body>
