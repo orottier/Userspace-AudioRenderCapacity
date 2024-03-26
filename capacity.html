@@ -4,15 +4,28 @@
         <title>User space AudioRenderCapacity</title>
     </head>
     <body>
-        <button id='start'>Start</button>
-        <button id='measure'>Measure</button>
-        <button id='stop'>Stop</button>
+        <h1>Experimental: AudioRenderCapacity implemented in user space web audio</h1>
+        <p>Hit Start when idle for a baseline measurement.</p>
+        <p>Click Measure to determine the load twice per second.</p>
+        <div>
+            <button id='start'>Start</button>
+            <button id='measure'>Measure</button>
+            <button id='stop'>Stop</button>
+        </div>
+
+        <textarea style='width: 80em; height: 20em' id='logBox'></textarea>
 
 <script type='text/javascript'>
 var started;
 
 var startButton = document.getElementById("start")
+var logBox = document.getElementById("logBox")
+logBox.value = '';
 var maxFlops = 0, realLoad = 0.;
+
+function log(text) {
+    logBox.value = new Date().toLocaleString() + " > " + text + "\n" + logBox.value;
+}
 
 startButton.onclick = async () => {
     console.log('play');
@@ -41,15 +54,15 @@ startButton.onclick = async () => {
         console.log("msg", event.data);
         if (event.data.max_flops) {
             maxFlops = event.data.max_flops;
-            console.log("maxFlops", maxFlops);
+            log("max flops: " + maxFlops);
             source.port.postMessage({ state: 2 })
         } else if (event.data.load_factor) {
             if (!realLoad) {
                 realLoad = event.data.load_factor;
-                console.log("realLoad", realLoad);
+                log("flop correction: " + Math.round(realLoad * 100, 2) / 100)
             } else {
                 var curLoad = Math.max(1 - event.data.load_factor / realLoad, 0) * 100;
-                console.log("curLoad", curLoad);
+                log("current load: " + Math.round(curLoad, 2) + "%");
             }
         }
     }
