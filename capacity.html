@@ -9,32 +9,10 @@
         <button id='stop'>Stop</button>
 
 <script type='text/javascript'>
-const interval_ms = 5;
-
-function checkLoad(context, prevTime, source, numStalls) {
-    var now = context.currentTime;
-    //console.log(now, prevTime);
-
-    if (now == prevTime) {
-        if (numStalls == 2) {
-            source.port.postMessage({});
-            return;
-        }
-        numStalls += 1;
-    }
-
-    setTimeout(() => checkLoad(context, now, source, numStalls), interval_ms);
-}
-
-var started = false;
-var context;
-var source;
-var interval;
+var started;
 
 var startButton = document.getElementById("start")
-startButton.onclick = start;
-
-async function start() {
+startButton.onclick = async () => {
     console.log('play');
     if (started) {
         return false;
@@ -61,31 +39,40 @@ async function start() {
         console.log('control msg error', e)
     }
 
-    var prevTime = -1.;
-    setTimeout(() => {
-        source.port.postMessage({});
-        checkLoad(context, prevTime, source, 0);
-    }, 1000);
-
-    // context.renderCapacity.start();
-    // context.renderCapacity.onupdate = (e) => { console.log(e); };
-
     var measureButton = document.getElementById("measure");
     measureButton.addEventListener('click', () => {
         measureButton.disabled = true;
-        interval = setInterval(function () {
-            source.port.postMessage({});
-            setTimeout(() => checkLoad(context, prevTime, source, 0), interval_ms);
-        }, 1000);
     });
 
     var stopButton = document.getElementById("stop");
     stopButton.addEventListener('click', () => {
         stopButton.disabled = true;
-        clearInterval(interval);
         context.close();
     });
-}
+
+    var sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+    source.port.postMessage({ state: 1, sab });
+    var arr = new Int32Array(sab);
+
+    setTimeout(function () {
+        var start = performance.now();
+        var count = 0;
+        var countUnique = 0;
+        var prev = 0;
+        do {
+            count += 1;
+            var now = performance.now();
+            if (now != prev) {
+                countUnique += 1;
+                prev = now;
+            } else {
+                Atomics.store(arr, 0, (now - start) * 1000);
+            }
+        } while (now - start < 100);
+        console.log("loop times:", count);
+        console.log("unique:", countUnique);
+    }, 0);
+};
 </script>
     </body>
 </html>
