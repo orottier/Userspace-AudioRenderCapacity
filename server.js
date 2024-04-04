@@ -58,7 +58,7 @@ http
   .listen(parseInt(port, 10));
 
 console.log(
-  "Static file server running at\n  => https://localhost:" +
+  "Static file server running at\n  => http://localhost:" +
     port +
     "/\nCTRL + C to shutdown",
 );
