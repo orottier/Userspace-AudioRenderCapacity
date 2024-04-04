@@ -8,8 +8,6 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
         // 2: ramp load linearly
         this._state = 0;
 
-        this._sab = null; // SharedArrayBuffer
-
         // number of flops needed for max load
         this._max_flops = 1;
         // fraction of max_flops we are currently testing
@@ -17,6 +15,8 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
 
         // previous render quantum time (ms)
         this._prev_time = 0;
+        // previous render quantum duration (ms)
+        this._prev_duration = 0;
         
         // timestamps when starting the measurement
         this._start_time = 0;
@@ -28,6 +28,7 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
             this._state = event.data.state;
             this._sum = 0.0;
             this._prev_time = 0;
+            this._prev_duration = 0.;
             this._start_time = 0;
             this._load_factor = 0;
         }
@@ -45,20 +46,25 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
         }
 
         var time = Date.now();
-        var duration = time - this._prev_time;
+        if (this._start_time == 0) {
+            this._start_time = time;
+        } else {
+            var duration = time - this._prev_time;
+
+            // calculate moving average of duration to combat dither
+            this._prev_duration += duration;
+            this._prev_duration /= 2;
+        }
+        this._prev_time = time;
 
         if (this._state == 1) {
             this._max_flops *= 2;
 
-            if (this._start_time == 0) {
-                this._start_time = time;
-            } else if (duration > 128 * 5 * 1000. / sampleRate) {
+            if (this._prev_duration > 128 * 4 * 1000. / sampleRate) {
                 this._state = 0;
                 this.port.postMessage({"max_flops": this._max_flops});
                 return true;
             }
-
-            this._prev_time = time;
 
             if (time - this._start_time > 500) {
                 this._state = 0;
@@ -69,15 +75,11 @@ class RenderCapacityProcessor extends AudioWorkletProcessor {
                 }
             }
         } else if (this._state == 2) {
-            if (this._start_time == 0) {
-                this._start_time = time;
-            } else if (duration > 128 * 5 * 1000. / sampleRate) {
+            if (this._prev_duration > 128 * 4 * 1000. / sampleRate) {
                 this._state = 0;
                 this.port.postMessage({"load_factor": this._load_factor});
                 return true;
             }
-
-            this._prev_time = time;
 
             if (this._load_factor < 2.) {
                 this._load_factor += 0.01;

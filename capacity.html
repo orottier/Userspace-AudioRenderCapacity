@@ -6,19 +6,21 @@
     <body>
         <h1>Experimental: AudioRenderCapacity implemented in user space web audio</h1>
         <p>Hit Start when idle for a baseline measurement.</p>
-        <p>Click Measure to determine the load twice per second.</p>
+        <p>Click Measure to determine the load once per second.</p>
+        <p>You might hear a small crack every time a load measurement is performed.</p>
         <div>
-            <button id='start'>Start</button>
-            <button id='measure'>Measure</button>
-            <button id='stop'>Stop</button>
+            <button id='start' disabled>Start</button>
+            <button id='measure' disabled>Measure</button>
+            <button id='stop' disabled>Stop</button>
         </div>
 
         <textarea style='width: 80em; height: 20em' id='logBox'></textarea>
 
 <script type='text/javascript'>
-var started;
-
 var startButton = document.getElementById("start")
+var measureButton = document.getElementById("measure");
+var stopButton = document.getElementById("stop");
+
 var logBox = document.getElementById("logBox")
 logBox.value = '';
 var maxFlops = 0, realLoad = 0.;
@@ -27,14 +29,12 @@ function log(text) {
     logBox.value = new Date().toLocaleString() + " > " + text + "\n" + logBox.value;
 }
 
+// await proper page load
+setTimeout(() => startButton.disabled = false, 1000);
+
 startButton.onclick = async () => {
-    console.log('play');
-    if (started) {
-        return false;
-    }
-    started = true;
-    console.log('starting');
     startButton.disabled = true;
+    stopButton.disabled = false;
 
     context = new (window.AudioContext || window.webkitAudioContext)();
     context.resume();
@@ -60,6 +60,7 @@ startButton.onclick = async () => {
             if (!realLoad) {
                 realLoad = event.data.load_factor;
                 log("flop correction: " + Math.round(realLoad * 100, 2) / 100)
+                measureButton.disabled = false;
             } else {
                 var curLoad = Math.max(1 - event.data.load_factor / realLoad, 0) * 100;
                 log("current load: " + Math.round(curLoad, 2) + "%");
@@ -70,20 +71,19 @@ startButton.onclick = async () => {
         console.log('control msg error', e)
     }
 
-    var measureButton = document.getElementById("measure");
     measureButton.addEventListener('click', () => {
         measureButton.disabled = true;
         source.port.postMessage({ state: 2 })
-        setInterval(() => source.port.postMessage({ state: 2 }), 500);
+        setInterval(() => source.port.postMessage({ state: 2 }), 1000);
     });
 
-    var stopButton = document.getElementById("stop");
     stopButton.addEventListener('click', () => {
         stopButton.disabled = true;
         context.close();
     });
 
-    source.port.postMessage({ state: 1 });
+    // wait for the render thread to boot properly before benching
+    setTimeout(() => source.port.postMessage({ state: 1 }), 10);
 };
 </script>
     </body>
